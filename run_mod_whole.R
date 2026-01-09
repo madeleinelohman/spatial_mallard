@@ -14,7 +14,7 @@ setwd("~/Desktop/haz")
 load("data/MALL_data2026.RData")
 rm(list=setdiff(ls(), c('marr.am', 'marr.jm', 'n.strata', 'n.years', 'grd', 'start', 'end')))
 
-source("haz_iar_noBeta_male.R")
+source("haz_iar_noSpace_male.R")
 
 marr.a = marr.am
 marr.j = marr.jm
@@ -27,7 +27,6 @@ n.strata = nrow(shape)
 #~~~~~~~~~~~~~ 
 report <- read.csv('data/boomer_rr.csv')
 #report <- report[1:n.years,]
-
 ### Moment match to get alpha and beta
 y <- report$rhoB
 sig <- report$rhoB.se
@@ -38,36 +37,21 @@ v <- report$rhoB.se^2
 alpha.prior <- y * (((y * (1-y)) / v) - 1)
 beta.prior <- (1 - y) * (((y * (1-y)) / v) - 1)
 
-alpha.prior <- c(rep(alpha.prior[1],2),alpha.prior,rep(alpha.prior[46],3))
-beta.prior <- c(rep(beta.prior[1],2),beta.prior,rep(beta.prior[46],3))
-
-#~~~~~~~~~~~~
-# Spatial matrices
-#~~~~~~~~~~~~
-W <- nb2mat(poly2nb(shape), style = "B")
-D <- matrix(0, nrow(shape), nrow(shape))
-diag(D) <- rowSums(W)
+alpha.prior <- c(rep(alpha.prior[1],2),alpha.prior,rep(alpha.prior[46],2))
+beta.prior <- c(rep(beta.prior[1],2),beta.prior,rep(beta.prior[46],2))
 
 #~~~~~~~~~~~~
 # Covariates
 #~~~~~~~~~~~~
+load("data/spei48_whole.RData")
+load("data/sum_ag_whole.RData")
 
-#load("data/ag.RData")
-load("data/spei48.RData")
-load("data/sum_ag.RData")
-# load("data/spei24.RData")
 
-# corrplot(cor(spei2, fallow))
-# summary(c(cor(spei2, fallow)))
-# 
-# corrplot(cor(crop, fallow))
-# summary(c(cor(crop, fallow)))
-# 
-# corrplot(cor(spei2, crop))
-# summary(c(cor(spei2, crop)))
-# crop[which(is.na(crop),arr.ind=T)] <- 0
-# fallow[which(is.na(fallow),arr.ind=T)] <- 0
-
+#~~~~~~~~~~~~
+# M-arrays
+#~~~~~~~~~~~~
+marr.a <- apply(marr.a,c(1,2),sum)
+marr.j <- apply(marr.j,c(1,2),sum)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Run model
@@ -75,18 +59,14 @@ load("data/sum_ag.RData")
 #~~~~~~~~~~~~
 # Data
 #~~~~~~~~~~~~
-data=list("Ns"=n.strata, 
-          "Nt"=n.years, 
-          "D"=D,
-          "W"=W,
+data=list("Nt"=n.years, 
           "marr_ad"=marr.a,
           "marr_j"=marr.j,
           "alpha_prior"=alpha.prior,
           "beta_prior"=beta.prior,
-          "W_n" = sum(W) / 2,
-          "crop"=t(crop),
-          "fallow"=t(fallow),
-          "spei" =t(spei2),
+          "crop"=(crop),
+          "fallow"=(fallow),
+          "spei" =(spei2),
           "c"=0.2,
           "zeros" =rep(0, n.years))
 
@@ -94,8 +74,8 @@ data=list("Ns"=n.strata,
 #~~~~~~~~~~~~
 # Initial values
 #~~~~~~~~~~~~
-pr = array(t(matrix(c(rep(0.015, n.years), 1-(0.015*n.years)), n.years+1, n.years)), dim=c(n.years, n.years+1, n.strata))
-pr.j = array(t(matrix(c(rep(0.015, n.years), 1-(0.015*n.years)), n.years+1, n.years)), dim=c(n.years, n.years+1, n.strata))
+pr = array(t(matrix(c(rep(0.015, n.years), 1-(0.015*n.years)), n.years+1, n.years)), dim=c(n.years, n.years+1))
+pr.j = array(t(matrix(c(rep(0.015, n.years), 1-(0.015*n.years)), n.years+1, n.years)), dim=c(n.years, n.years+1))
 
 # inits <- function(){list(pr_ad = pr, pr_j = pr.j)}
 # initf2 <- function(chain_id=1){
@@ -126,14 +106,10 @@ initf2 <- function(chain_id=1){
 params <- c("sigma_nm_ad", "sigma_k_ad", "sigma_nm_j", "sigma_k_j",
             "phi", "kappa", "eta", "phi_j", "kappa_j", "eta_j",
             'beta_nm', 'beta_nm_j', 
-            'site_sigma_ad_nm','site_sigma_j_nm',
-            'site_sigma_ad_k','site_sigma_j_k',
             'alpha_nm', 'alpha_nm_j',
             'alpha_hm', 'alpha_hm_j',
             'xi', 'xi_j',
-            'eps', 'eps_j',
-            'site_ad_k', 'site_j_k',
-            'site_ad_nm','site_j_nm')
+            'eps', 'eps_j')
 
 
 # params <- c("sigma_nm_ad", "sigma_k_ad", "sigma_nm_j", "sigma_k_j",
@@ -144,12 +120,13 @@ params <- c("sigma_nm_ad", "sigma_k_ad", "sigma_nm_j", "sigma_k_j",
 #~~~~~~~~~~~~
 
 start.time = Sys.time()
-m <- stan(model_code=CAR_surv, data=data, 
-           chains=3, iter=3000, init=initf2,
+m <- stan(model_code=mall_noSpace_mal, data=data, 
+           chains=3, iter=2000, init=initf2,
            cores=3, pars=params)
 end.time = Sys.time()
 end.time - start.time
-save.image("IAR_haz_male.RData")
+
+save.image("haz_iar_noSpace_male.RData")
 
 
 library(beepr)

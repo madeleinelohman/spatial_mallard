@@ -1,4 +1,4 @@
-mall_noSpace_fem="
+mall_noSpace_mal="
 data{
   int Nt; //This is the number of years
   
@@ -11,9 +11,9 @@ data{
   real beta_prior[Nt];
   
   
-  matrix[Nt] crop; //crop covariate
-  matrix[Nt] fallow; //fallow covariate
-  matrix[Nt] spei; //pond mean
+  vector[Nt-1] crop; //crop covariate
+  vector[Nt-1] fallow; //fallow covariate
+  vector[Nt-1] spei; //pond mean
   
 }
 parameters{
@@ -25,11 +25,11 @@ parameters{
   real<lower=0> sigma_nm_ad; //This is the SD on adult survival
   real<lower=0> sigma_k_ad; //This is the SD on adult harvest mortality
   
-  vector[Nt] xi; //Adult harvest mortality untransformed
-  vector[Nt] eps; //Adult natural mortality untransformed
+  vector[Nt] xi; //Adult harvest mortality temporal RE
+  vector[Nt-1] eps; //Adult natural mortality temporal RE
   
-  vector[Nt] xi_j; //Juvenile harvest mortality untransformed
-  vector[Nt] eps_j; //Juvenile natural mortality untransformed
+  vector[Nt] xi_j; //Juvenile harvest mortality temporal RE
+  vector[Nt-1] eps_j; //Juvenile natural mortality temporal RE
   
   real alpha_hm;
   real alpha_nm;
@@ -43,20 +43,20 @@ parameters{
 transformed parameters{
   //SET UP
   
-  matrix[Nt] nm; //Adult natural mortality hazard rate
-  matrix[Nt] hm; //Adult harvest mortality hazard rate
-  matrix[Nt] nm_j; //Juvenile natural mortality hazard rate
-  matrix[Nt] hm_j; //Juvenile harvest mortality hazard rate
+  vector[Nt-1] nm; //Adult natural mortality hazard rate
+  vector[Nt] hm; //Adult harvest mortality hazard rate
+  vector[Nt-1] nm_j; //Juvenile natural mortality hazard rate
+  vector[Nt] hm_j; //Juvenile harvest mortality hazard rate
   
-  matrix<lower=0, upper=1>[Nt-1] phi; //Survival probability
-  matrix<lower=0, upper=1>[Nt] kappa; //Harvest mortality probability
-  matrix<lower=0, upper=1>[Nt] eta; //Natural mortality probability
-  matrix<lower=0, upper=1>[Nt] f; //Direct Recovery rate
+  vector<lower=0, upper=1>[Nt-1] phi; //Survival probability
+  vector<lower=0, upper=1>[Nt] kappa; //Harvest mortality probability
+  vector<lower=0, upper=1>[Nt-1] eta; //Natural mortality probability
+  vector<lower=0, upper=1>[Nt] f; //Direct Recovery rate
   
-  matrix<lower=0, upper=1>[Nt-1] phi_j; //Juvenile Survival probability
-  matrix<lower=0, upper=1>[Nt] kappa_j; //Juvenile Harvest mortality probability
-  matrix<lower=0, upper=1>[Nt] eta_j; //Juvenile Natural mortality probability
-  matrix<lower=0, upper=1>[Nt] f_j; //Juvenile Direct Recovery rate
+  vector<lower=0, upper=1>[Nt-1] phi_j; //Juvenile Survival probability
+  vector<lower=0, upper=1>[Nt] kappa_j; //Juvenile Harvest mortality probability
+  vector<lower=0, upper=1>[Nt-1] eta_j; //Juvenile Natural mortality probability
+  vector<lower=0, upper=1>[Nt] f_j; //Juvenile Direct Recovery rate
   
   real<lower=0, upper=1> pr[Nt, Nt+1]; //m-array probabilities
   real<lower=0, upper=1> pr_j[Nt, Nt+1]; //Juvenile m-array probabilities
@@ -65,21 +65,24 @@ transformed parameters{
   //HAZARD RATES
   for(t in 1:Nt){
     hm[t] = exp(alpha_hm + xi[t]);
-    nm[t] = exp(alpha_nm + eps[t] + beta_nm[1]*crop[t] + beta_nm[2]*spei[t] + beta_nm[3]*fallow[t]);
     hm_j[t] = exp(alpha_hm_j + xi_j[t]);
-    nm_j[t] = exp(alpha_nm_j + eps_j[t] + beta_nm_j[1]*crop[t] + beta_nm_j[2]*spei[t] + beta_nm_j[3]*fallow[t]);
+    
     
     //PROBABILITIES
     kappa[t] = 1 - exp(-(hm[t]));
-    eta[t] = (1-kappa[t]) * (1-exp(-(nm[t])));
     kappa_j[t] = 1 - exp(-(hm_j[t]));
-    eta_j[t] = (1-kappa_j[t]) * (1-exp(-(nm_j[t])));
     
     f[t] = kappa[t] * r[t] * (1-c);
     f_j[t] = kappa_j[t] * r[t] * (1-c);
   }
 
   for(t in 1:(Nt-1)){
+    nm[t] = exp(alpha_nm + eps[t] + beta_nm[1]*crop[t] + beta_nm[2]*spei[t] + beta_nm[3]*fallow[t]);
+    nm_j[t] = exp(alpha_nm_j + eps_j[t] + beta_nm_j[1]*crop[t] + beta_nm_j[2]*spei[t] + beta_nm_j[3]*fallow[t]);
+    
+    eta[t] = (1-kappa[t]) * (1-exp(-(nm[t])));
+    eta_j[t] = (1-kappa_j[t]) * (1-exp(-(nm_j[t])));
+    
     phi[t] = exp(-(nm[t] + hm[t]));
     phi_j[t] = exp(-(nm_j[t] + hm_j[t]));
   }
@@ -132,7 +135,7 @@ model{
   alpha_hm_j ~ normal(-1.3,1);
   alpha_nm ~ normal(-0.8,1);
   alpha_nm_j ~ normal(-1.2,1);
-
+  
   sigma_nm_ad ~ uniform(0,3);
   sigma_nm_j ~ uniform(0,3);
   sigma_k_ad ~ uniform(0,3);
@@ -149,12 +152,15 @@ model{
   xi_j[1] ~ normal(0, sigma_k_j);
   eps_j[1] ~ normal(0, sigma_nm_j);
   
-  for(t in 2:Nt){
-    xi[t] ~ normal(0, sigma_k_ad);
-    eps[t] ~ normal(0, sigma_nm_ad);
-    xi_j[t] ~ normal(0, sigma_k_j);
-    eps_j[t] ~ normal(0, sigma_nm_j);
+  for(t in 2:(Nt-1)){
+    xi[t] ~ normal(xi[t-1], sigma_k_ad);
+    eps[t] ~ normal(eps[t-1], sigma_nm_ad);
+    xi_j[t] ~ normal(xi_j[t-1], sigma_k_j);
+    eps_j[t] ~ normal(eps_j[t-1], sigma_nm_j);
   }
+  xi[Nt] ~ normal(xi[Nt-1], sigma_k_ad);
+  xi_j[Nt] ~ normal(xi_j[Nt-1], sigma_k_j);
+  
   
   for(i in 1:3){
     beta_nm[i] ~ normal(0, 3);
