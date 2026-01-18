@@ -28,8 +28,8 @@ data{
   
   real<lower=0, upper=1> c; // crippling rate
   
-  real alpha_prior[Nt-1];
-  real beta_prior[Nt-1];
+  real alpha_prior[Nt];
+  real beta_prior[Nt];
   
   
   matrix[Nt-1, Ns] crop; //crop covariate
@@ -70,10 +70,7 @@ transformed data {
 }
 
 parameters{
-  real<lower=0, upper=1> r[Nt-1]; // reporting rate
-  
-  //real<lower=0, upper=1> rho_nm; //This is the correlation coefficient for harvest mortality
-  //real<lower=0, upper=1> rho_hm; //This is the correlation coefficient for harvest mortality
+  real<lower=0, upper=1> r[Nt]; // reporting rate
    
   real<lower=0> sigma_nm_j; //This is the SD on juvenile survival
   real<lower=0> sigma_k_j; //This is the SD on juvenile harvest mortality
